@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>进销存看板 - 2026-07-01</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+  font-size: 14px;
+  color: #333;
+  background: #f5f5f5;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 56px;
+}
+.app {
+  max-width: 600px;
+  margin: 0 auto;
+  min-height: 100vh;
+}
+
+/* ---- header ---- */
+.header {
+  background: linear-gradient(135deg, #1a73e8, #1557b0);
+  color: #fff;
+  padding: 16px 16px 10px;
+  text-align: center;
+}
+.header h1 { font-size: 18px; font-weight: 600; }
+.header .date { font-size: 12px; opacity: .8; margin-top: 2px; }
+
+/* ---- tab content ---- */
+.tab-content { display: none; padding: 12px 12px 24px; }
+.tab-content.active { display: block; }
+
+/* ---- cards ---- */
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+.card .label { font-size: 11px; color: #888; margin-bottom: 4px; }
+.card .value { font-size: 18px; font-weight: 700; text-align: right; }
+.card .value.green { color: #0d904f; }
+.card .value.red { color: #d93025; }
+.card.full { grid-column: 1 / -1; }
+
+/* ---- section ---- */
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+  margin: 14px 0 8px;
+  padding-left: 4px;
+  border-left: 3px solid #1a73e8;
+}
+
+/* ---- list ---- */
+.list-item {
+  background: #fff;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.list-item .left { flex: 1; min-width: 0; }
+.list-item .left .name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-item .left .sub { font-size: 11px; color: #999; margin-top: 2px; }
+.list-item .right { text-align: right; margin-left: 10px; flex-shrink: 0; }
+.list-item .right .amount { font-weight: 700; font-size: 15px; }
+.list-item .right .amount.red { color: #d93025; }
+.list-item .right .amount.green { color: #0d904f; }
+.list-item .right .sub { font-size: 11px; color: #999; }
+
+/* ---- search ---- */
+.search-box {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  font-size: 14px;
+  outline: none;
+  margin-bottom: 10px;
+  background: #fff;
+}
+.search-box:focus { border-color: #1a73e8; }
+
+/* ---- sort controls ---- */
+.sort-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.sort-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  color: #555;
+}
+.sort-btn.active { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+
+/* ---- category group ---- */
+.cat-group { margin-bottom: 14px; }
+.cat-group .cat-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a73e8;
+  padding: 4px 8px;
+  background: #e8f0fe;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 6px;
+}
+
+/* ---- stock badge ---- */
+.stock-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 40px;
+  text-align: center;
+}
+.stock-badge.normal { background: #e6f4ea; color: #0d904f; }
+.stock-badge.low { background: #fef7e0; color: #e37400; }
+.stock-badge.zero { background: #fce8e6; color: #d93025; }
+
+/* ---- movement type ---- */
+.mov-type {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.mov-type.in { background: #e6f4ea; color: #0d904f; }
+.mov-type.out { background: #fce8e6; color: #d93025; }
+
+/* ---- ledger ---- */
+.ledger-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ledger-table th {
+  background: #f0f0f0;
+  padding: 8px 6px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  color: #555;
+  position: sticky; top: 0;
+  white-space: nowrap;
+}
+.ledger-table td { padding: 8px 6px; border-bottom: 1px solid #eee; vertical-align: top; }
+.ledger-table .amt { text-align: right; font-weight: 700; white-space: nowrap; }
+.ledger-table .amt.green { color: #0d904f; }
+.ledger-table .amt.red { color: #d93025; }
+.ledger-table .bal { text-align: right; font-weight: 700; white-space: nowrap; color: #0d904f; }
+
+/* ---- bottom nav ---- */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  display: flex;
+  border-top: 1px solid #e0e0e0;
+  z-index: 100;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.bottom-nav .nav-item {
+  flex: 1;
+  text-align: center;
+  padding: 8px 4px 6px;
+  font-size: 10px;
+  color: #888;
+  cursor: pointer;
+  transition: color .15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.bottom-nav .nav-item .icon { font-size: 18px; display: block; margin-bottom: 2px; }
+.bottom-nav .nav-item.active { color: #1a73e8; font-weight: 600; }
+
+/* ---- empty state ---- */
+.empty {
+  text-align: center;
+  color: #bbb;
+  padding: 30px 0;
+  font-size: 13px;
+}
+
+/* ---- note text ---- */
+.note-text { font-size: 12px; color: #888; white-space: pre-wrap; line-height: 1.5; }
+
+/* ---- ledger scroll wrapper ---- */
+.ledger-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+@media (min-width: 601px) {
+  .app { border-left: 1px solid #e0e0e0; border-right: 1px solid #e0e0e0; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="header">
+  <h1>进销存看板</h1>
+  <div class="date">2026-07-01</div>
+</div>
+
+<!-- Tab 0: 日报 -->
+<div class="tab-content active" id="tab0"></div>
+
+<!-- Tab 1: 欠款 -->
+<div class="tab-content" id="tab1"></div>
+
+<!-- Tab 2: 库存 -->
+<div class="tab-content" id="tab2"></div>
+
+<!-- Tab 3: 近期流水 -->
+<div class="tab-content" id="tab3"></div>
+
+<!-- Tab 4: 流水账 -->
+<div class="tab-content" id="tab4"></div>
+
+<!-- Bottom Nav -->
+<div class="bottom-nav" id="bottomNav">
+  <div class="nav-item active" data-tab="0"><span class="icon">📊</span>日报</div>
+  <div class="nav-item" data-tab="1"><span class="icon">👥</span>欠款</div>
+  <div class="nav-item" data-tab="2"><span class="icon">📦</span>库存</div>
+  <div class="nav-item" data-tab="3"><span class="icon">🔄</span>流水</div>
+  <div class="nav-item" data-tab="4"><span class="icon">💰</span>账本</div>
+</div>
+
+</div>
+
+<script id="data" type="application/json">{&quot;date&quot;:&quot;2026-07-01&quot;,&quot;daily&quot;:null,&quot;customerDebts&quot;:[{&quot;name&quot;:&quot;风扇厂&quot;,&quot;debt&quot;:107708019},{&quot;name&quot;:&quot;直营2号店&quot;,&quot;debt&quot;:26865650},{&quot;name&quot;:&quot;商店3&quot;,&quot;debt&quot;:10970400},{&quot;name&quot;:&quot;BALDE&quot;,&quot;debt&quot;:7413000},{&quot;name&quot;:&quot;阿排&quot;,&quot;debt&quot;:6664000},{&quot;name&quot;:&quot;CHINA CITY&quot;,&quot;debt&quot;:5744375},{&quot;name&quot;:&quot;KOUAKOU2&quot;,&quot;debt&quot;:5444274},{&quot;name&quot;:&quot;李权/赖玉斌&quot;,&quot;debt&quot;:5003400},{&quot;name&quot;:&quot;MOBILUX&quot;,&quot;debt&quot;:4891000},{&quot;name&quot;:&quot;TOURE&quot;,&quot;debt&quot;:3815000},{&quot;name&quot;:&quot;CHINA HOME&quot;,&quot;debt&quot;:3814900},{&quot;name&quot;:&quot;MAN中国超市&quot;,&quot;debt&quot;:3392000},{&quot;name&quot;:&quot;银行&quot;,&quot;debt&quot;:3360000},{&quot;name&quot;:&quot;龙龙店&quot;,&quot;debt&quot;:3084000},{&quot;name&quot;:&quot;何总（鲁总）0554808813&quot;,&quot;debt&quot;:3030000},{&quot;name&quot;:&quot;何总（鲁总）&quot;,&quot;debt&quot;:3030000},{&quot;name&quot;:&quot;MOUHAMED&quot;,&quot;debt&quot;:2860000},{&quot;name&quot;:&quot;JHONNY&quot;,&quot;debt&quot;:2202000},{&quot;name&quot;:&quot;MEHDI(ABOBO)&quot;,&quot;debt&quot;:1957200},{&quot;name&quot;:&quot;NADIA&quot;,&quot;debt&quot;:1799000},{&quot;name&quot;:&quot;CHINAMALL3店&quot;,&quot;debt&quot;:1674400},{&quot;name&quot;:&quot;WAEL&quot;,&quot;debt&quot;:1670000},{&quot;name&quot;:&quot;CHINAMALL5店&quot;,&quot;debt&quot;:1624350},{&quot;name&quot;:&quot;陈雪仲&quot;,&quot;debt&quot;:1588000},{&quot;name&quot;:&quot;工资备用金&quot;,&quot;debt&quot;:1500000},{&quot;name&quot;:&quot;ANASAN(伟伟）&quot;,&quot;debt&quot;:1340000},{&quot;name&quot;:&quot;陈永清&quot;,&quot;debt&quot;:995000},{&quot;name&quot;:&quot;CHINA CHICO MARKET&quot;,&quot;debt&quot;:944000},{&quot;name&quot;:&quot;MME ALAMI&quot;,&quot;debt&quot;:909700},{&quot;name&quot;:&quot;ABOU&quot;,&quot;debt&quot;:783500},{&quot;name&quot;:&quot;ALI（封存）&quot;,&quot;debt&quot;:727000},{&quot;name&quot;:&quot;ROI1212&quot;,&quot;debt&quot;:722000},{&quot;name&quot;:&quot;MEHDI&quot;,&quot;debt&quot;:645600},{&quot;name&quot;:&quot;MOBILIA&quot;,&quot;debt&quot;:563000},{&quot;name&quot;:&quot;散客&quot;,&quot;debt&quot;:454500},{&quot;name&quot;:&quot;CHINA MART3&quot;,&quot;debt&quot;:445000},{&quot;name&quot;:&quot;CHINA_M_2号店&quot;,&quot;debt&quot;:324000},{&quot;name&quot;:&quot;BABALOLANEJEEM&quot;,&quot;debt&quot;:307000},{&quot;name&quot;:&quot;KONE&quot;,&quot;debt&quot;:298121},{&quot;name&quot;:&quot;ISA&quot;,&quot;debt&quot;:200000},{&quot;name&quot;:&quot;RICHARD&quot;,&quot;debt&quot;:163000},{&quot;name&quot;:&quot;KAMAL&quot;,&quot;debt&quot;:150000},{&quot;name&quot;:&quot;BABA&quot;,&quot;debt&quot;:135000},{&quot;name&quot;:&quot;乡下客人&quot;,&quot;debt&quot;:132500},{&quot;name&quot;:&quot;ADOUMANE(地推）&quot;,&quot;debt&quot;:87450},{&quot;name&quot;:&quot;MAHMOUD&quot;,&quot;debt&quot;:84000},{&quot;name&quot;:&quot;KOUASSI&quot;,&quot;debt&quot;:73500},{&quot;name&quot;:&quot;ADJAME(伟伟）&quot;,&quot;debt&quot;:47000},{&quot;name&quot;:&quot;LUCKY&quot;,&quot;debt&quot;:40000},{&quot;name&quot;:&quot;HUNNY MULANI&quot;,&quot;debt&quot;:36000},{&quot;name&quot;:&quot;ALI（ADOUMANE）&quot;,&quot;debt&quot;:30000},{&quot;name&quot;:&quot;HUNNY&quot;,&quot;debt&quot;:25100},{&quot;name&quot;:&quot;王永爱WANG&quot;,&quot;debt&quot;:18000},{&quot;name&quot;:&quot;LAKOTA(KOUAKOU)&quot;,&quot;debt&quot;:15000},{&quot;name&quot;:&quot;YAPO&quot;,&quot;debt&quot;:11500},{&quot;name&quot;:&quot;米沙&quot;,&quot;debt&quot;:10000},{&quot;name&quot;:&quot;MRCH&quot;,&quot;debt&quot;:6000},{&quot;name&quot;:&quot;DUEKOUE&quot;,&quot;debt&quot;:6000},{&quot;name&quot;:&quot;MARIAME&quot;,&quot;debt&quot;:5000},{&quot;name&quot;:&quot;M.FOFANA&quot;,&quot;debt&quot;:4000},{&quot;name&quot;:&quot;RABOT SADA(KOUAKOU)&quot;,&quot;debt&quot;:3580},{&quot;name&quot;:&quot;ASOU&quot;,&quot;debt&quot;:1000},{&quot;name&quot;:&quot;CLIENT&quot;,&quot;debt&quot;:500}],&quot;inventory&quot;:[{&quot;name&quot;:&quot;1200S灰色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;158 白色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:9,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;158 白色次品&quot;,&quot;category&quot;:&quot;次品&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;158 灰色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:51,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;158 灰色次品&quot;,&quot;category&quot;:&quot;次品&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;158白色_铁内胆&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;158灰色_铁内胆&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;218 白色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:17,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;218 白色次品&quot;,&quot;category&quot;:&quot;次品&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;218 灰色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:460,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;218 灰色次品&quot;,&quot;category&quot;:&quot;次品&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;218白色_铁内胆&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;218灰色_铁内胆&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;258 白色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:13,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;258 白色次品&quot;,&quot;category&quot;:&quot;次品&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;258 灰色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:218,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;258 灰色次品&quot;,&quot;category&quot;:&quot;次品&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;258银灰色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:6,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;258V白色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:1,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;258V灰色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:25,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;308 白色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:50,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;308 白色次品&quot;,&quot;category&quot;:&quot;次品&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;308 灰色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:478,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;308 灰色次品&quot;,&quot;category&quot;:&quot;次品&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;308V灰色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;408 白色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:56,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;408 白色次品&quot;,&quot;category&quot;:&quot;次品&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;408 灰色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:22,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;408 灰色次品&quot;,&quot;category&quot;:&quot;次品&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;408白色铁内胆&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;408V灰色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;500T灰色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;528B灰色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:10,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;600D灰色&quot;,&quot;category&quot;:&quot;冰箱&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;玻璃&quot;,&quot;category&quot;:&quot;未分类&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;C10&quot;,&quot;category&quot;:&quot;塑料&quot;,&quot;stock&quot;:-8,&quot;price&quot;:6000,&quot;cost&quot;:6000,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;C12&quot;,&quot;category&quot;:&quot;塑料&quot;,&quot;stock&quot;:-91,&quot;price&quot;:8000,&quot;cost&quot;:8000,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;D1008&quot;,&quot;category&quot;:&quot;音箱&quot;,&quot;stock&quot;:19,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;D1010&quot;,&quot;category&quot;:&quot;音箱&quot;,&quot;stock&quot;:20,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;D1012&quot;,&quot;category&quot;:&quot;音箱&quot;,&quot;stock&quot;:159,&quot;price&quot;:65000,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;D1015&quot;,&quot;category&quot;:&quot;音箱&quot;,&quot;stock&quot;:77,&quot;price&quot;:115000,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;DZ3012&quot;,&quot;category&quot;:&quot;音箱&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;DZ3015&quot;,&quot;category&quot;:&quot;音箱&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;FS1801&quot;,&quot;category&quot;:&quot;风扇&quot;,&quot;stock&quot;:-10,&quot;price&quot;:15500,&quot;cost&quot;:14000,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;K01&quot;,&quot;category&quot;:&quot;热水壶&quot;,&quot;stock&quot;:0,&quot;price&quot;:40000,&quot;cost&quot;:0,&quot;low_stock&quot;:10,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;SV08&quot;,&quot;category&quot;:&quot;音箱&quot;,&quot;stock&quot;:61,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;SV66&quot;,&quot;category&quot;:&quot;音箱&quot;,&quot;stock&quot;:53,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;X5&quot;,&quot;category&quot;:&quot;音箱&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;X6&quot;,&quot;category&quot;:&quot;音箱&quot;,&quot;stock&quot;:0,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false},{&quot;name&quot;:&quot;X8&quot;,&quot;category&quot;:&quot;音箱&quot;,&quot;stock&quot;:54,&quot;price&quot;:0,&quot;cost&quot;:0,&quot;low_stock&quot;:0,&quot;is_supplier&quot;:false}],&quot;recentMovements&quot;:[{&quot;time&quot;:&quot;2026-07-01T19:09:53.066Z&quot;,&quot;product&quot;:&quot;C10&quot;,&quot;type&quot;:&quot;out&quot;,&quot;qty&quot;:8,&quot;amount&quot;:48000,&quot;note&quot;:&quot;&quot;},{&quot;time&quot;:&quot;2026-07-01T19:09:53.066Z&quot;,&quot;product&quot;:&quot;C12&quot;,&quot;type&quot;:&quot;out&quot;,&quot;qty&quot;:91,&quot;amount&quot;:728000,&quot;note&quot;:&quot;&quot;},{&quot;time&quot;:&quot;2026-07-01T19:09:53.066Z&quot;,&quot;product&quot;:&quot;FS1801&quot;,&quot;type&quot;:&quot;out&quot;,&quot;qty&quot;:10,&quot;amount&quot;:155000,&quot;note&quot;:&quot;&quot;},{&quot;time&quot;:&quot;2026-06-27T17:54:05.613Z&quot;,&quot;product&quot;:&quot;D1015&quot;,&quot;type&quot;:&quot;in&quot;,&quot;qty&quot;:74,&quot;amount&quot;:0,&quot;note&quot;:&quot;&quot;}],&quot;ledger&quot;:[],&quot;openingBalance&quot;:111828964}</script>
+<script>
+(function() {
+  function esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function fmt(n) {
+    if (n == null || isNaN(n)) return '0';
+    return Number(n).toLocaleString('fr-FR');
+  }
+
+  var raw = document.getElementById('data').textContent;
+  var D = JSON.parse(raw);
+
+  // ---- tab switching ----
+  var navItems = document.querySelectorAll('#bottomNav .nav-item');
+  var tabs = document.querySelectorAll('.tab-content');
+  navItems.forEach(function(item) {
+    item.addEventListener('click', function() {
+      var idx = this.getAttribute('data-tab');
+      navItems.forEach(function(n) { n.classList.remove('active'); });
+      this.classList.add('active');
+      tabs.forEach(function(t) { t.classList.remove('active'); });
+      document.getElementById('tab' + idx).classList.add('active');
+    });
+  });
+
+  // ============ Tab 0: 日报 ============
+  function renderDaily() {
+    var html = '';
+    var d = D.daily;
+
+    if (d) {
+      html += '<div class="cards">';
+
+      // 销售额 (green)
+      html += '<div class="card"><div class="label">销售额</div><div class="value green">' + fmt(d.sales_amount) + '</div></div>';
+      // 上交 (red - outflow)
+      html += '<div class="card"><div class="label">上交</div><div class="value red">' + fmt(d.submit_amount) + '</div></div>';
+      // 费用
+      html += '<div class="card"><div class="label">费用支出</div><div class="value red">' + fmt(d.store_expense) + '</div></div>';
+      // 还款
+      html += '<div class="card"><div class="label">还款</div><div class="value">' + fmt(d.repayment) + '</div></div>';
+      // 退款
+      html += '<div class="card"><div class="label">退款</div><div class="value red">' + fmt(d.refund) + '</div></div>';
+      // 欠款
+      html += '<div class="card"><div class="label">欠款</div><div class="value red">' + fmt(d.debt) + '</div></div>';
+      // 退货
+      html += '<div class="card"><div class="label">退货</div><div class="value red">' + fmt(d.returns) + '</div></div>';
+
+      html += '</div>';
+
+      // 备注
+      if (d.note) {
+        html += '<div class="section-title">备注</div>';
+        html += '<div class="note-text">' + esc(d.note) + '</div>';
+      }
+    } else {
+      html += '<div class="empty">暂无当日数据</div>';
+    }
+
+    // 欠款 TOP 5
+    if (D.customerDebts && D.customerDebts.length > 0) {
+      html += '<div class="section-title">欠款 TOP5</div>';
+      var sorted = D.customerDebts.slice().sort(function(a, b) { return b.debt - a.debt; }).slice(0, 5);
+      sorted.forEach(function(c) {
+        html += '<div class="list-item">';
+        html += '<div class="left"><div class="name">' + esc(c.name) + '</div></div>';
+        html += '<div class="right"><div class="amount red">' + fmt(c.debt) + '</div></div>';
+        html += '</div>';
+      });
+    }
+
+    // 最近出库（取 recentMovements 中 type 为出库的前5条）
+    if (D.recentMovements && D.recentMovements.length > 0) {
+      var outs = D.recentMovements.filter(function(m) { return m.type === '出库'; }).slice(0, 5);
+      if (outs.length > 0) {
+        html += '<div class="section-title">最近出库</div>';
+        outs.forEach(function(m) {
+          html += '<div class="list-item">';
+          html += '<div class="left"><div class="name">' + esc(m.product) + '</div><div class="sub">' + esc(m.time) + '</div></div>';
+          html += '<div class="right"><div class="amount">' + fmt(m.qty) + '</div><div class="sub">' + esc(m.note || '') + '</div></div>';
+          html += '</div>';
+        });
+      }
+    }
+
+    document.getElementById('tab0').innerHTML = html;
+  }
+
+  // ============ Tab 1: 欠款 ============
+  function renderDebts() {
+    var debts = D.customerDebts || [];
+    var sortMode = 'debt-desc';
+
+    function build(sort) {
+      sortMode = sort || sortMode;
+      var list = debts.slice();
+      if (sortMode === 'debt-desc') list.sort(function(a, b) { return b.debt - a.debt; });
+      else if (sortMode === 'debt-asc') list.sort(function(a, b) { return a.debt - b.debt; });
+      else if (sortMode === 'name') list.sort(function(a, b) { return a.name.localeCompare(b.name, 'zh'); });
+
+      var q = (document.getElementById('debtSearch') && document.getElementById('debtSearch').value || '').trim().toLowerCase();
+      if (q) list = list.filter(function(c) { return c.name.toLowerCase().includes(q); });
+
+      var h = '';
+      if (list.length === 0) {
+        h = '<div class="empty">' + (q ? '无匹配客户' : '暂无欠款记录') + '</div>';
+      } else {
+        list.forEach(function(c) {
+          h += '<div class="list-item">';
+          h += '<div class="left"><div class="name">' + esc(c.name) + '</div></div>';
+          h += '<div class="right"><div class="amount red">' + fmt(c.debt) + '</div></div>';
+          h += '</div>';
+        });
+      }
+      document.getElementById('tab1').innerHTML =
+        '<input class="search-box" id="debtSearch" type="text" placeholder="搜索客户名称..." oninput="window._renderDebts()">' +
+        '<div class="sort-bar">' +
+        '<button class="sort-btn' + (sortMode === 'debt-desc' ? ' active' : '') + '" onclick="window._sortDebts(\'debt-desc\')">欠款↓</button>' +
+        '<button class="sort-btn' + (sortMode === 'debt-asc' ? ' active' : '') + '" onclick="window._sortDebts(\'debt-asc\')">欠款↑</button>' +
+        '<button class="sort-btn' + (sortMode === 'name' ? ' active' : '') + '" onclick="window._sortDebts(\'name\')">名称</button>' +
+        '</div>' + h;
+    }
+
+    window._renderDebts = function() { build(); };
+    window._sortDebts = function(s) { build(s); };
+    build();
+  }
+
+  // ============ Tab 2: 库存 ============
+  function renderInventory() {
+    var inv = D.inventory || [];
+    var sortMode = 'cat';
+
+    function build(sort) {
+      sortMode = sort || sortMode;
+      var list = inv.slice();
+      if (sortMode === 'stock-asc') list.sort(function(a, b) { return a.stock - b.stock; });
+      else if (sortMode === 'stock-desc') list.sort(function(a, b) { return b.stock - a.stock; });
+
+      var q = (document.getElementById('invSearch') && document.getElementById('invSearch').value || '').trim().toLowerCase();
+      if (q) list = list.filter(function(p) { return p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q); });
+
+      var h = '';
+      if (list.length === 0) {
+        h = '<div class="empty">' + (q ? '无匹配商品' : '暂无库存数据') + '</div>';
+      } else if (sortMode === 'cat') {
+        // group by category
+        var groups = {};
+        list.forEach(function(p) {
+          var cat = p.category || '未分类';
+          if (!groups[cat]) groups[cat] = [];
+          groups[cat].push(p);
+        });
+        var catNames = Object.keys(groups).sort(function(a, b) { return a.localeCompare(b, 'zh'); });
+        catNames.forEach(function(cat) {
+          h += '<div class="cat-group"><div class="cat-name">' + esc(cat) + '</div>';
+          groups[cat].forEach(function(p) {
+            var badgeClass = p.stock <= 0 ? 'zero' : (p.stock <= p.low_stock ? 'low' : 'normal');
+            h += '<div class="list-item">';
+            h += '<div class="left"><div class="name">' + esc(p.name) + (p.is_supplier ? ' <small style="color:#888">(供)</small>' : '') + '</div></div>';
+            h += '<div class="right"><span class="stock-badge ' + badgeClass + '">' + fmt(p.stock) + '</span></div>';
+            h += '</div>';
+          });
+          h += '</div>';
+        });
+      } else {
+        list.forEach(function(p) {
+          var badgeClass = p.stock <= 0 ? 'zero' : (p.stock <= p.low_stock ? 'low' : 'normal');
+          h += '<div class="list-item">';
+          h += '<div class="left"><div class="name">' + esc(p.name) + (p.is_supplier ? ' <small style="color:#888">(供)</small>' : '') + '</div><div class="sub">' + esc(p.category || '') + '</div></div>';
+          h += '<div class="right"><span class="stock-badge ' + badgeClass + '">' + fmt(p.stock) + '</span></div>';
+          h += '</div>';
+        });
+      }
+
+      document.getElementById('tab2').innerHTML =
+        '<input class="search-box" id="invSearch" type="text" placeholder="搜索商品名称或品类..." oninput="window._renderInv()">' +
+        '<div class="sort-bar">' +
+        '<button class="sort-btn' + (sortMode === 'cat' ? ' active' : '') + '" onclick="window._sortInv(\'cat\')">按品类</button>' +
+        '<button class="sort-btn' + (sortMode === 'stock-asc' ? ' active' : '') + '" onclick="window._sortInv(\'stock-asc\')">库存↑</button>' +
+        '<button class="sort-btn' + (sortMode === 'stock-desc' ? ' active' : '') + '" onclick="window._sortInv(\'stock-desc\')">库存↓</button>' +
+        '</div>' + h;
+    }
+
+    window._renderInv = function() { build(); };
+    window._sortInv = function(s) { build(s); };
+    build();
+  }
+
+  // ============ Tab 3: 近期流水 ============
+  function renderMovements() {
+    var movs = D.recentMovements || [];
+    var html = '';
+    if (movs.length === 0) {
+      html = '<div class="empty">暂无流水记录</div>';
+    } else {
+      movs.forEach(function(m) {
+        var typeClass = m.type === '入库' ? 'in' : 'out';
+        html += '<div class="list-item">';
+        html += '<div class="left"><div class="name"><span class="mov-type ' + typeClass + '">' + esc(m.type) + '</span> ' + esc(m.product) + '</div><div class="sub">' + esc(m.time) + '</div></div>';
+        html += '<div class="right"><div class="amount">' + fmt(m.qty) + '</div><div class="sub">' + (m.amount ? fmt(m.amount) : '') + '</div></div>';
+        html += '</div>';
+      });
+    }
+    document.getElementById('tab3').innerHTML =
+      '<div class="section-title">近7天出入库记录</div>' + html;
+  }
+
+  // ============ Tab 4: 流水账 ============
+  function renderLedger() {
+    var ledger = D.ledger || [];
+    var html = '';
+    if (ledger.length === 0) {
+      html = '<div class="empty">暂无账目记录</div>';
+    } else {
+      html += '<div class="ledger-scroll"><table class="ledger-table"><thead><tr>';
+      html += '<th>日期</th><th>类型</th><th>分类</th><th>描述</th><th>金额</th><th>结余</th>';
+      html += '</tr></thead><tbody>';
+      ledger.forEach(function(row) {
+        html += '<tr>';
+        html += '<td>' + esc(row.date) + '</td>';
+        html += '<td>' + esc(row.type) + '</td>';
+        html += '<td>' + esc(row.category) + '</td>';
+        html += '<td style="max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(row.description) + '</td>';
+        var amtClass = row.amount >= 0 ? 'green' : 'red';
+        html += '<td class="amt ' + amtClass + '">' + fmt(row.amount) + '</td>';
+        html += '<td class="bal">' + fmt(row.balance) + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    document.getElementById('tab4').innerHTML =
+      '<div class="section-title">流水明细</div>' + html;
+  }
+
+  // ---- init ----
+  window.onload = function() {
+    renderDaily();
+    renderDebts();
+    renderInventory();
+    renderMovements();
+    renderLedger();
+  };
+})();
+</script>
+</body>
+</html>
