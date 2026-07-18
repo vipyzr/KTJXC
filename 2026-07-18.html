@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>进销存看板 - 2026-07-18</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+  font-size: 14px;
+  color: #333;
+  background: #f5f5f5;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 56px;
+}
+.app {
+  max-width: 600px;
+  margin: 0 auto;
+  min-height: 100vh;
+}
+
+/* ---- header ---- */
+.header {
+  background: linear-gradient(135deg, #1a73e8, #1557b0);
+  color: #fff;
+  padding: 16px 16px 10px;
+  text-align: center;
+}
+.header h1 { font-size: 18px; font-weight: 600; }
+.header .date { font-size: 12px; opacity: .8; margin-top: 2px; }
+
+/* ---- tab content ---- */
+.tab-content { display: none; padding: 12px 12px 24px; }
+.tab-content.active { display: block; }
+
+/* ---- cards ---- */
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+.card .label { font-size: 11px; color: #888; margin-bottom: 4px; }
+.card .value { font-size: 18px; font-weight: 700; text-align: right; }
+.card .value.green { color: #0d904f; }
+.card .value.red { color: #d93025; }
+.card.full { grid-column: 1 / -1; }
+
+/* ---- section ---- */
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+  margin: 14px 0 8px;
+  padding-left: 4px;
+  border-left: 3px solid #1a73e8;
+}
+
+/* ---- list ---- */
+.list-item {
+  background: #fff;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.list-item .left { flex: 1; min-width: 0; }
+.list-item .left .name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-item .left .sub { font-size: 11px; color: #999; margin-top: 2px; }
+.list-item .right { text-align: right; margin-left: 10px; flex-shrink: 0; }
+.list-item .right .amount { font-weight: 700; font-size: 15px; }
+.list-item .right .amount.red { color: #d93025; }
+.list-item .right .amount.green { color: #0d904f; }
+.list-item .right .sub { font-size: 11px; color: #999; }
+
+/* ---- search ---- */
+.search-box {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  font-size: 14px;
+  outline: none;
+  margin-bottom: 10px;
+  background: #fff;
+}
+.search-box:focus { border-color: #1a73e8; }
+
+/* ---- sort controls ---- */
+.sort-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.sort-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  color: #555;
+}
+.sort-btn.active { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+
+/* ---- category group ---- */
+.cat-group { margin-bottom: 14px; }
+.cat-group .cat-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a73e8;
+  padding: 4px 8px;
+  background: #e8f0fe;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 6px;
+}
+
+/* ---- stock badge ---- */
+.stock-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 40px;
+  text-align: center;
+}
+.stock-badge.normal { background: #e6f4ea; color: #0d904f; }
+.stock-badge.low { background: #fef7e0; color: #e37400; }
+.stock-badge.zero { background: #fce8e6; color: #d93025; }
+
+/* ---- movement type ---- */
+.mov-type {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.mov-type.in { background: #e6f4ea; color: #0d904f; }
+.mov-type.out { background: #fce8e6; color: #d93025; }
+
+/* ---- ledger ---- */
+.ledger-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ledger-table th {
+  background: #f0f0f0;
+  padding: 8px 6px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  color: #555;
+  position: sticky; top: 0;
+  white-space: nowrap;
+}
+.ledger-table td { padding: 8px 6px; border-bottom: 1px solid #eee; vertical-align: top; }
+.ledger-table .amt { text-align: right; font-weight: 700; white-space: nowrap; }
+.ledger-table .amt.green { color: #0d904f; }
+.ledger-table .amt.red { color: #d93025; }
+.ledger-table .bal { text-align: right; font-weight: 700; white-space: nowrap; color: #0d904f; }
+
+/* ---- bottom nav ---- */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  display: flex;
+  border-top: 1px solid #e0e0e0;
+  z-index: 100;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.bottom-nav .nav-item {
+  flex: 1;
+  text-align: center;
+  padding: 8px 4px 6px;
+  font-size: 10px;
+  color: #888;
+  cursor: pointer;
+  transition: color .15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.bottom-nav .nav-item .icon { font-size: 18px; display: block; margin-bottom: 2px; }
+.bottom-nav .nav-item.active { color: #1a73e8; font-weight: 600; }
+
+/* ---- empty state ---- */
+.empty {
+  text-align: center;
+  color: #bbb;
+  padding: 30px 0;
+  font-size: 13px;
+}
+
+/* ---- note text ---- */
+.note-text { font-size: 12px; color: #888; white-space: pre-wrap; line-height: 1.5; }
+
+/* ---- ledger scroll wrapper ---- */
+.ledger-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+@media (min-width: 601px) {
+  .app { border-left: 1px solid #e0e0e0; border-right: 1px solid #e0e0e0; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="header">
+  <h1>进销存看板</h1>
+  <div class="date">2026-07-18</div>
+</div>
+
+<!-- Tab 0: 日报 -->
+<div class="tab-content active" id="tab0"></div>
+
+<!-- Tab 1: 欠款 -->
+<div class="tab-content" id="tab1"></div>
+
+<!-- Tab 2: 库存 -->
+<div class="tab-content" id="tab2"></div>
+
+<!-- Tab 3: 近期流水 -->
+<div class="tab-content" id="tab3"></div>
+
+<!-- Tab 4: 流水账 -->
+<div class="tab-content" id="tab4"></div>
+
+<!-- Bottom Nav -->
+<div class="bottom-nav" id="bottomNav">
+  <div class="nav-item active" data-tab="0"><span class="icon">📊</span>日报</div>
+  <div class="nav-item" data-tab="1"><span class="icon">👥</span>欠款</div>
+  <div class="nav-item" data-tab="2"><span class="icon">📦</span>库存</div>
+  <div class="nav-item" data-tab="3"><span class="icon">🔄</span>流水</div>
+  <div class="nav-item" data-tab="4"><span class="icon">💰</span>账本</div>
+</div>
+
+</div>
+
+<script>
+var _PUBLISH_DATA_ = {"date":"2026-07-18","daily":null,"customerDebts":[{"name":"风扇厂","debt":107708019},{"name":"直营2号店","debt":26865650},{"name":"商店3","debt":10970400},{"name":"BALDE","debt":7413000},{"name":"阿排","debt":6664000},{"name":"CHINA CITY","debt":5744375},{"name":"KOUAKOU2","debt":5444274},{"name":"李权/赖玉斌","debt":5003400},{"name":"MOBILUX","debt":4891000},{"name":"TOURE","debt":3815000},{"name":"CHINA HOME","debt":3814900},{"name":"MAN中国超市","debt":3392000},{"name":"银行","debt":3360000},{"name":"龙龙店","debt":3084000},{"name":"何总（鲁总）0554808813","debt":3030000},{"name":"何总（鲁总）","debt":3030000},{"name":"MOUHAMED","debt":2860000},{"name":"JHONNY","debt":2202000},{"name":"MEHDI(ABOBO)","debt":1957200},{"name":"NADIA","debt":1799000},{"name":"CHINAMALL3店","debt":1674400},{"name":"WAEL","debt":1670000},{"name":"CHINAMALL5店","debt":1624350},{"name":"陈雪仲","debt":1588000},{"name":"工资备用金","debt":1500000},{"name":"ANASAN(伟伟）","debt":1340000},{"name":"陈永清","debt":995000},{"name":"CHINA CHICO MARKET","debt":944000},{"name":"MME ALAMI","debt":909700},{"name":"MEHDI","debt":885600},{"name":"ABOU","debt":783500},{"name":"ALI（封存）","debt":727000},{"name":"ROI1212","debt":722000},{"name":"MOBILIA","debt":563000},{"name":"散客","debt":454500},{"name":"CHINA MART3","debt":445000},{"name":"CHINA_M_2号店","debt":324000},{"name":"BABALOLANEJEEM","debt":307000},{"name":"KONE","debt":298121},{"name":"ISA","debt":200000},{"name":"RICHARD","debt":163000},{"name":"KAMAL","debt":150000},{"name":"BABA","debt":135000},{"name":"乡下客人","debt":132500},{"name":"ADOUMANE(地推）","debt":87450},{"name":"MAHMOUD","debt":84000},{"name":"KOUASSI","debt":73500},{"name":"ADJAME(伟伟）","debt":47000},{"name":"LUCKY","debt":40000},{"name":"HUNNY MULANI","debt":36000},{"name":"ALI（ADOUMANE）","debt":30000},{"name":"HUNNY","debt":25100},{"name":"王永爱WANG","debt":18000},{"name":"LAKOTA(KOUAKOU)","debt":15000},{"name":"YAPO","debt":11500},{"name":"米沙","debt":10000},{"name":"MRCH","debt":6000},{"name":"DUEKOUE","debt":6000},{"name":"MARIAME","debt":5000},{"name":"M.FOFANA","debt":4000},{"name":"RABOT SADA(KOUAKOU)","debt":3580},{"name":"ASOU","debt":1000},{"name":"CLIENT","debt":500}],"supplierDebts":[],"inventory":[{"name":"1200S灰色","category":"冰箱","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"158 白色","category":"冰箱","stock":8,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"158 白色次品","category":"次品","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"158 灰色","category":"冰箱","stock":50,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"158 灰色次品","category":"次品","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"158白色_铁内胆","category":"冰箱","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"158灰色_铁内胆","category":"冰箱","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"218 白色","category":"冰箱","stock":17,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"218 白色次品","category":"次品","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"218 灰色","category":"冰箱","stock":460,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"218 灰色次品","category":"次品","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"218白色_铁内胆","category":"冰箱","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"218灰色_铁内胆","category":"冰箱","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"258 白色","category":"冰箱","stock":12,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"258 白色次品","category":"次品","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"258 灰色","category":"冰箱","stock":218,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"258 灰色次品","category":"次品","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"258银灰色","category":"冰箱","stock":6,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"258V白色","category":"冰箱","stock":1,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"258V灰色","category":"冰箱","stock":25,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"308 白色","category":"冰箱","stock":50,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"308 白色次品","category":"次品","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"308 灰色","category":"冰箱","stock":478,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"308 灰色次品","category":"次品","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"308V灰色","category":"冰箱","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"408 白色","category":"冰箱","stock":56,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"408 白色次品","category":"次品","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"408 灰色","category":"冰箱","stock":22,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"408 灰色次品","category":"次品","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"408白色铁内胆","category":"冰箱","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"408V灰色","category":"冰箱","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"500T灰色","category":"冰箱","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"528B灰色","category":"冰箱","stock":10,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"600D灰色","category":"冰箱","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"玻璃","category":"未分类","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"C10","category":"塑料","stock":-8,"price":6000,"cost":6000,"low_stock":0,"is_supplier":false},{"name":"C12","category":"塑料","stock":-91,"price":8000,"cost":8000,"low_stock":0,"is_supplier":false},{"name":"D1008","category":"音箱","stock":19,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"D1010","category":"音箱","stock":20,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"D1012","category":"音箱","stock":159,"price":65000,"cost":0,"low_stock":0,"is_supplier":false},{"name":"D1015","category":"音箱","stock":77,"price":115000,"cost":0,"low_stock":0,"is_supplier":false},{"name":"DZ3012","category":"音箱","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"DZ3015","category":"音箱","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"FS1801","category":"风扇","stock":-10,"price":15500,"cost":14000,"low_stock":0,"is_supplier":false},{"name":"K01","category":"热水壶","stock":0,"price":40000,"cost":0,"low_stock":10,"is_supplier":false},{"name":"SV08","category":"音箱","stock":61,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"SV66","category":"音箱","stock":53,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"X5","category":"音箱","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"X6","category":"音箱","stock":0,"price":0,"cost":0,"low_stock":0,"is_supplier":false},{"name":"X8","category":"音箱","stock":54,"price":0,"cost":0,"low_stock":0,"is_supplier":false}],"recentMovements":[],"ledger":[],"openingBalance":111828964};
+document.addEventListener('DOMContentLoaded', function() {
+  function esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function fmt(n) {
+    if (n == null || isNaN(n)) return '0';
+    return Number(n).toLocaleString('fr-FR');
+  }
+
+  var raw = document.getElementById('data')?.textContent;
+  if (!raw && window._PUBLISH_DATA_) { raw = JSON.stringify(window._PUBLISH_DATA_); }
+  var D = window._PUBLISH_DATA_ || (raw ? JSON.parse(raw) : {});
+
+  // ---- tab switching ----
+  var navItems = document.querySelectorAll('#bottomNav .nav-item');
+  var tabs = document.querySelectorAll('.tab-content');
+  navItems.forEach(function(item) {
+    item.addEventListener('click', function() {
+      var idx = this.getAttribute('data-tab');
+      navItems.forEach(function(n) { n.classList.remove('active'); });
+      this.classList.add('active');
+      tabs.forEach(function(t) { t.classList.remove('active'); });
+      document.getElementById('tab' + idx).classList.add('active');
+    });
+  });
+
+  // ============ Tab 0: 日报 ============
+  function renderDaily() {
+    var html = '';
+    var d = D.daily;
+
+    if (d) {
+      html += '<div class="cards">';
+
+      // 销售额 (green)
+      html += '<div class="card"><div class="label">销售额</div><div class="value green">' + fmt(d.sales_amount) + '</div></div>';
+      // 上交 (red - outflow)
+      html += '<div class="card"><div class="label">上交</div><div class="value red">' + fmt(d.submit_amount) + '</div></div>';
+      // 费用
+      html += '<div class="card"><div class="label">费用支出</div><div class="value red">' + fmt(d.store_expense) + '</div></div>';
+      // 还款
+      html += '<div class="card"><div class="label">还款</div><div class="value">' + fmt(d.repayment) + '</div></div>';
+      // 退款
+      html += '<div class="card"><div class="label">退款</div><div class="value red">' + fmt(d.refund) + '</div></div>';
+      // 欠款
+      html += '<div class="card"><div class="label">欠款</div><div class="value red">' + fmt(d.debt) + '</div></div>';
+      // 退货
+      html += '<div class="card"><div class="label">退货</div><div class="value red">' + fmt(d.returns) + '</div></div>';
+
+      html += '</div>';
+
+      // 备注
+      if (d.note) {
+        html += '<div class="section-title">备注</div>';
+        html += '<div class="note-text">' + esc(d.note) + '</div>';
+      }
+    } else {
+      html += '<div class="empty">暂无当日数据</div>';
+    }
+
+    // 欠款 TOP 5
+    if (D.customerDebts && D.customerDebts.length > 0) {
+      html += '<div class="section-title">欠款 TOP5</div>';
+      var sorted = D.customerDebts.slice().sort(function(a, b) { return b.debt - a.debt; }).slice(0, 5);
+      sorted.forEach(function(c) {
+        html += '<div class="list-item">';
+        html += '<div class="left"><div class="name">' + esc(c.name) + '</div></div>';
+        html += '<div class="right"><div class="amount red">' + fmt(c.debt) + '</div></div>';
+        html += '</div>';
+      });
+    }
+
+    // 最近出库
+    if (D.recentMovements && D.recentMovements.length > 0) {
+      var outs = D.recentMovements.filter(function(m) { return m.type === 'out' || m.type === '出库'; }).slice(0, 5);
+      if (outs.length > 0) {
+        html += '<div class="section-title">最近出库</div>';
+        outs.forEach(function(m) {
+          html += '<div class="list-item">';
+          html += '<div class="left"><div class="name">' + esc(m.product) + '</div><div class="sub">' + esc(m.time) + '</div></div>';
+          html += '<div class="right"><div class="amount">' + fmt(m.qty) + '件</div><div class="sub">' + fmt(m.amount||0) + '</div></div>';
+          html += '</div>';
+        });
+      }
+    }
+
+    document.getElementById('tab0').innerHTML = html;
+  }
+
+  // ============ Tab 1: 欠款 ============
+  function renderDebts() {
+    var debts = D.customerDebts || [];
+    var supplierDebts = D.supplierDebts || [];
+    var sortMode = 'debt-desc';
+
+    // 总欠款统计
+    var totalCustomerDebt = debts.reduce(function(s, c) { return s + c.debt; }, 0);
+    var totalSupplierDebt = supplierDebts.reduce(function(s, c) { return s + c.debt; }, 0);
+
+    function buildList(sort) {
+      sortMode = sort || sortMode;
+      var list = debts.slice();
+      if (sortMode === 'debt-desc') list.sort(function(a, b) { return b.debt - a.debt; });
+      else if (sortMode === 'debt-asc') list.sort(function(a, b) { return a.debt - b.debt; });
+      else if (sortMode === 'name') list.sort(function(a, b) { return a.name.localeCompare(b.name, 'zh'); });
+
+      var q = document.getElementById('debtSearch').value.trim().toLowerCase();
+      if (q) list = list.filter(function(c) { return c.name.toLowerCase().includes(q); });
+
+      var h = '';
+      if (list.length === 0) {
+        h = '<div class="empty">' + (q ? '无匹配客户' : '暂无欠款记录') + '</div>';
+      } else {
+        list.forEach(function(c) {
+          h += '<div class="list-item" style="font-size:0.85rem">';
+          h += '<div class="left"><div class="name">' + esc(c.name) + '</div></div>';
+          h += '<div class="right"><div class="amount red">' + fmt(c.debt) + '</div></div>';
+          h += '</div>';
+        });
+      }
+      document.getElementById('debtList').innerHTML = h;
+      // update sort button active states
+      document.querySelectorAll('#tab1 .sort-btn').forEach(function(b) { b.classList.remove('active'); });
+      var activeBtn = document.querySelector('#tab1 .sort-btn[data-sort="' + sortMode + '"]');
+      if (activeBtn) activeBtn.classList.add('active');
+    }
+
+    // 构建静态结构：汇总卡片 + 搜索 + 排序 + 列表容器
+    var summaryHtml = '';
+    summaryHtml += '<div class="cards" style="margin-bottom:12px">';
+    summaryHtml += '<div class="card"><div class="label">客户总欠款</div><div class="value red">' + fmt(totalCustomerDebt) + '</div></div>';
+    summaryHtml += '<div class="card"><div class="label">供应商欠款</div><div class="value" style="color:#ea580c">' + fmt(totalSupplierDebt) + '</div></div>';
+    summaryHtml += '</div>';
+
+    var searchAndSort = '<input class="search-box" id="debtSearch" type="text" placeholder="搜索客户名称..." oninput="_debtBuild()">' +
+      '<div class="sort-bar">' +
+      '<button class="sort-btn active" data-sort="debt-desc" onclick="_debtSort('debt-desc')">欠款↓</button>' +
+      '<button class="sort-btn" data-sort="debt-asc" onclick="_debtSort('debt-asc')">欠款↑</button>' +
+      '<button class="sort-btn" data-sort="name" onclick="_debtSort('name')">名称</button>' +
+      '</div>';
+
+    document.getElementById('tab1').innerHTML = summaryHtml + searchAndSort + '<div id="debtList"></div>';
+
+    window._debtBuild = function() { buildList(); };
+    window._debtSort = function(s) { buildList(s); };
+    buildList();
+  }
+
+  // ============ Tab 2: 库存 ============
+  function renderInventory() {
+    var inv = D.inventory || [];
+    var sortMode = 'cat';
+
+    function buildList(sort) {
+      sortMode = sort || sortMode;
+      var list = inv.slice();
+      if (sortMode === 'stock-asc') list.sort(function(a, b) { return a.stock - b.stock; });
+      else if (sortMode === 'stock-desc') list.sort(function(a, b) { return b.stock - a.stock; });
+
+      var q = document.getElementById('invSearch').value.trim().toLowerCase();
+      if (q) list = list.filter(function(p) { return p.name.toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q); });
+
+      var h = '';
+      if (list.length === 0) {
+        h = '<div class="empty">' + (q ? '无匹配商品' : '暂无库存数据') + '</div>';
+      } else if (sortMode === 'cat') {
+        var groups = {};
+        list.forEach(function(p) {
+          var cat = p.category || '未分类';
+          if (!groups[cat]) groups[cat] = [];
+          groups[cat].push(p);
+        });
+        var catNames = Object.keys(groups).sort(function(a, b) { return a.localeCompare(b, 'zh'); });
+        catNames.forEach(function(cat) {
+          h += '<div class="cat-group"><div class="cat-name">' + esc(cat) + '</div>';
+          groups[cat].forEach(function(p) {
+            var badgeClass = p.stock <= 0 ? 'zero' : (p.stock <= p.low_stock ? 'low' : 'normal');
+            h += '<div class="list-item">';
+            h += '<div class="left"><div class="name">' + esc(p.name) + (p.is_supplier ? ' <small style="color:#888">(供)</small>' : '') + '</div></div>';
+            h += '<div class="right"><span class="stock-badge ' + badgeClass + '">' + fmt(p.stock) + '</span><span class="sub" style="font-size:0.7rem;color:#999;display:block;text-align:right">' + (p.price > 0 ? fmt(p.price) : '') + '</span></div>';
+            h += '</div>';
+          });
+          h += '</div>';
+        });
+      } else {
+        list.forEach(function(p) {
+          var badgeClass = p.stock <= 0 ? 'zero' : (p.stock <= p.low_stock ? 'low' : 'normal');
+          h += '<div class="list-item">';
+          h += '<div class="left"><div class="name">' + esc(p.name) + (p.is_supplier ? ' <small style="color:#888">(供)</small>' : '') + '</div><div class="sub">' + esc(p.category || '') + '</div></div>';
+          h += '<div class="right"><span class="stock-badge ' + badgeClass + '">' + fmt(p.stock) + '</span></div>';
+          h += '</div>';
+        });
+      }
+
+      document.getElementById('invList').innerHTML = h;
+      document.querySelectorAll('#tab2 .sort-btn').forEach(function(b) { b.classList.remove('active'); });
+      var activeBtn = document.querySelector('#tab2 .sort-btn[data-sort="' + sortMode + '"]');
+      if (activeBtn) activeBtn.classList.add('active');
+    }
+
+    var searchAndSort = '<input class="search-box" id="invSearch" type="text" placeholder="搜索商品名称或品类..." oninput="_invBuild()">' +
+      '<div class="sort-bar">' +
+      '<button class="sort-btn active" data-sort="cat" onclick="_invSort('cat')">按品类</button>' +
+      '<button class="sort-btn" data-sort="stock-asc" onclick="_invSort('stock-asc')">库存↑</button>' +
+      '<button class="sort-btn" data-sort="stock-desc" onclick="_invSort('stock-desc')">库存↓</button>' +
+      '</div>';
+
+    document.getElementById('tab2').innerHTML = searchAndSort + '<div id="invList"></div>';
+
+    window._invBuild = function() { buildList(); };
+    window._invSort = function(s) { buildList(s); };
+    buildList();
+  }
+
+  // ============ Tab 3: 近期流水 ============
+  function renderMovements() {
+    var movs = D.recentMovements || [];
+    var html = '';
+    if (movs.length === 0) {
+      html = '<div class="empty">暂无流水记录</div>';
+    } else {
+      movs.forEach(function(m) {
+        var isOut = m.type === 'out' || m.type === '出库';
+        var typeClass = isOut ? 'out' : 'in';
+        var typeLabel = isOut ? '出库' : '入库';
+        html += '<div class="list-item">';
+        html += '<div class="left"><div class="name"><span class="mov-type ' + typeClass + '">' + typeLabel + '</span> ' + esc(m.product) + '</div><div class="sub">' + esc(m.time) + '</div></div>';
+        html += '<div class="right"><div class="amount">' + fmt(m.qty) + '件</div><div class="sub">' + (m.amount ? fmt(m.amount) : '') + '</div></div>';
+        html += '</div>';
+      });
+    }
+    document.getElementById('tab3').innerHTML =
+      '<div class="section-title">近7天出入库记录</div>' + html;
+  }
+
+  // ============ Tab 4: 流水账 ============
+  function renderLedger() {
+    var ledger = D.ledger || [];
+    var html = '';
+    if (ledger.length === 0) {
+      html = '<div class="empty">暂无账目记录</div>';
+    } else {
+      html += '<div class="ledger-scroll"><table class="ledger-table"><thead><tr>';
+      html += '<th>日期</th><th>类型</th><th>分类</th><th>描述</th><th>金额</th><th>结余</th>';
+      html += '</tr></thead><tbody>';
+      ledger.forEach(function(row) {
+        html += '<tr>';
+        html += '<td>' + esc(row.date) + '</td>';
+        html += '<td>' + esc(row.type) + '</td>';
+        html += '<td>' + esc(row.category) + '</td>';
+        html += '<td style="max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(row.description) + '</td>';
+        var amtClass = row.amount >= 0 ? 'green' : 'red';
+        html += '<td class="amt ' + amtClass + '">' + fmt(row.amount) + '</td>';
+        html += '<td class="bal">' + fmt(row.balance) + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    document.getElementById('tab4').innerHTML =
+      '<div class="section-title">流水明细</div>' + html;
+  }
+
+  // ---- init ----
+  renderDaily();
+  renderDebts();
+  renderInventory();
+  renderMovements();
+  renderLedger();
+});
+</script>
+</body>
+</html>
